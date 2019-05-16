@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"time"
 )
@@ -29,14 +30,8 @@ func New(config *Config) *Grabber {
 
 func (g *Grabber) Run() error {
 
-	if util.Connected() {
-		if err := g.updateBackground(); err != nil {
-			if osErr, ok := err.(OSNotSupported); ok {
-				return fmt.Errorf("could not get new background: %v", osErr)
-			} else {
-				return fmt.Errorf("couldn't update: %v", err)
-			}
-		}
+	if err := g.updateBackground(); err != nil {
+		return fmt.Errorf("couldn't update: %v", err)
 	}
 
 	interrupt := make(chan os.Signal, 1)
@@ -45,37 +40,65 @@ func (g *Grabber) Run() error {
 	ticker := time.NewTicker(time.Duration(g.config.RefreshMinutes) * time.Minute)
 	for {
 		select {
-		case <-ticker.C:
-
-			if util.Connected() {
-				if err := g.updateBackground(); err != nil {
-					if osErr, ok := err.(OSNotSupported); ok {
-						return fmt.Errorf("could not get new background: %v", osErr)
-					} else {
-						return fmt.Errorf("couldn't update: %v", err)
-					}
-				}
-			}
-
-			log.Info("Waiting until next tick to get new background")
 
 		case <-interrupt:
 			os.Exit(-1)
+
+		case <-ticker.C:
+
+			if g.config.DeleteOldPictures {
+				if err := g.deleteOldPictures(); err != nil {
+					return fmt.Errorf("couldn't delete old pictures: %v", err)
+				}
+			}
+
+			if err := g.updateBackground(); err != nil {
+				return fmt.Errorf("couldn't update: %v", err)
+			}
+
+			log.Info("Waiting until next tick to get new background")
 		}
 	}
 
 	return nil
 }
 
-func (g *Grabber) updateBackground() error {
-	log.Infof("updating background @ %s", time.Now().String())
-	backgrounds, err := g.getNewBackgrounds()
+
+func deleteFile(path string, info os.FileInfo, err error) error {
 	if err != nil {
 		return err
 	}
 
-	if err := g.setBackgrounds(backgrounds); err != nil {
-		return err
+	// is this a dir, is it a plain old file, and does the user have permission to delete this?
+	if !info.IsDir() && info.Mode().IsRegular() && info.Mode().Perm() & (1 << (uint(7))) == 0 {
+		if rmErr := os.Remove(path); rmErr != nil {
+			return rmErr
+		}
+	}
+	return nil
+}
+
+func (g *Grabber) deleteOldPictures() error {
+
+	err := filepath.Walk(g.config.BackgroundsDirPath, deleteFile)
+	if err != nil {
+		return fmt.Errorf("failed to delete files: %v", err)
+	}
+	return nil
+}
+
+func (g *Grabber) updateBackground() error {
+	log.Infof("updating background @ %s", time.Now().String())
+
+	if util.Connected() {
+		backgrounds, err := g.getNewBackgrounds()
+		if err != nil {
+			return err
+		}
+
+		if err := g.setBackgrounds(backgrounds); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -129,7 +152,7 @@ func (g *Grabber) setBackgrounds(backgroundSet *background.Set) error {
 	case "darwin":
 		return g.setMacOSBackground(backgrounds)
 	default:
-		panic(OSNotSupported{}.Error())
+		panic(OSNotSupported{})
 	}
 }
 
@@ -188,9 +211,8 @@ func (g *Grabber) setUbuntuBackground(files []string) error {
 	log.Infof("running '%s' to set image as background", cmd.Args)
 
 	if err := cmd.Run(); err != nil {
-		panic(fmt.Errorf("encountered error while changing background: %v", err))
+		return fmt.Errorf("encountered error while changing background: %v", err)
 	}
-
 
 	stderr, err := ioutil.ReadAll(&b)
 	if err != nil {
@@ -224,10 +246,9 @@ func (g *Grabber) setWindowsBackground(_ []string) error {
 	return nil
 }
 
-type OSNotSupported struct {
-	error
-}
+
+type OSNotSupported struct{}
 
 func (o OSNotSupported) Error() string {
-	return "Operating System not supported"
+	return "operating system not supported"
 }

@@ -20,6 +20,7 @@ func init() {
 	flag.BoolVar(&config.Featured, "featured", false, "Whether or not to limit an update to featured photos from Unsplash.")
 	flag.StringVar(&config.Collections, "collections", "", "A comma-separated list of collection IDs to filter on. The update will only return items in the specified collections.")
 	flag.StringVar(&config.BackgroundsDirPath, "backgroundsDirPath", "", "Path to the backgrounds directory on your machine.")
+	flag.BoolVar(&config.DeleteOldPictures, "deleteOldPictures", true, "Toggles deleting old backgrounds when new ones are downloaded.")
 	flag.StringVar(&config.Username, "username", "", "Limit selection to a single user.")
 	flag.StringVar(&config.Query, "query", "", "Limit selection to photos matching a search term.")
 	flag.StringVar(&config.Orientation, "orientation", "", "Filter search results by photo orientation. Valid values are landscape, portrait, and squarish.")

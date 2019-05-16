@@ -16,10 +16,17 @@ type Config struct {
 	Collections        string
 	RefreshMinutes     int
 	BackgroundsDirPath string
+	DeleteOldPictures  bool
 }
 
 func NewConfig() *Config {
-	return &Config{}
+	return &Config{
+		Count: 1,
+		Orientation: "landscape",
+		RefreshMinutes: 15,
+		Query: "nature",
+		DeleteOldPictures: true,
+	}
 }
 
 func (c *Config) GoodFlags() bool {
