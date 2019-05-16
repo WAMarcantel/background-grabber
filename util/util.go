@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"net/http"
 )
 
@@ -23,7 +24,9 @@ func PrintRed(s... interface{}){
 func Connected() (ok bool) {
 	_, err := http.Get("https://api.unsplash.com/")
 	if err != nil {
+		log.Debugf("could not connect to https://api.unsplash.com/")
 		return false
 	}
+	log.Debugf("connected successfully to https://api.unsplash.com/")
 	return true
 }
